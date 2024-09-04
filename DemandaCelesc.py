@@ -1,8 +1,4 @@
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+import streamlit as st
 from datetime import datetime
 
 # Dados iniciais
@@ -123,281 +119,35 @@ potencia_por_area = {
     395.0: 7.907, 396.0: 7.927, 397.0: 7.947, 398.0: 7.967, 399.0: 7.987,
     400.0: 8.007
 }
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from datetime import datetime
+# Função para calcular a potência total necessária
+def calcular_potencia(area, quantidade, fator_diversidade):
+    potencia_por_area_value = potencia_por_area.get(area, None)
+    if potencia_por_area_value is None:
+        st.error("Área do apartamento não encontrada.")
+        return None
+    potencia_total = potencia_por_area_value * quantidade * fator_diversidade
+    return potencia_total
 
-# Dados iniciais
-apartamentos = []
+# Função para exibir o resultado
+def exibir_resultado(potencia_total):
+    st.write(f"Potência total necessária: {potencia_total:.2f} kVA")
 
+# Interface do Streamlit
+st.title('Cálculo de Potência Necessária para Apartamentos')
 
-# Obter as opções para os comboboxes a partir das tabelas
-quantidades = sorted(fatores_diversidade.keys())
-areas = sorted(potencia_por_area.keys())
+# Entrada de dados
+area = st.number_input("Área do apartamento (m²)", min_value=0.0, format="%.1f")
+quantidade = st.number_input("Quantidade de apartamentos", min_value=1, step=1)
+fator_diversidade = st.number_input("Fator de diversidade", min_value=0.0, format="%.2f")
 
-# Funções para manipulação de dados
-def adicionar_apartamento():
-    descricao = entry_descricao.get()
-    quantidade = combobox_quantidade.get()
-    area = combobox_area.get()
+# Calcular e exibir resultado
+if st.button("Calcular"):
+    if area and quantidade and fator_diversidade:
+        potencia_total = calcular_potencia(area, quantidade, fator_diversidade)
+        if potencia_total is not None:
+            exibir_resultado(potencia_total)
+    else:
+        st.error("Por favor, preencha todos os campos.")
 
-    if not descricao or not quantidade or not area:
-        messagebox.showerror("Erro", "Todos os campos devem ser preenchidos")
-        return
-
-    try:
-        quantidade = int(quantidade)
-        area = float(area)
-    except ValueError:
-        messagebox.showerror("Erro", "Quantidade deve ser um número inteiro e Área deve ser um número decimal")
-        return
-
-    apartamentos.append({
-        "descricao": descricao,
-        "quantidade": quantidade,
-        "area": area
-    })
-    atualizar_lista()
-
-def editar_apartamento():
-    selected_item = lista_apartamentos.selection()
-    if not selected_item:
-        messagebox.showerror("Erro", "Selecione um apartamento para editar")
-        return
-    
-    item_id = selected_item[0]
-    descricao = entry_descricao.get()
-    quantidade = combobox_quantidade.get()
-    area = combobox_area.get()
-
-    if not descricao or not quantidade or not area:
-        messagebox.showerror("Erro", "Todos os campos devem ser preenchidos")
-        return
-
-    try:
-        quantidade = int(quantidade)
-        area = float(area)
-    except ValueError:
-        messagebox.showerror("Erro", "Quantidade deve ser um número inteiro e Área deve ser um número decimal")
-        return
-
-    # Encontra o índice do item para atualizar
-    index = lista_apartamentos.index(item_id)
-    apartamentos[index] = {
-        "descricao": descricao,
-        "quantidade": quantidade,
-        "area": area
-    }
-    atualizar_lista()
-
-def remover_apartamento():
-    selected_item = lista_apartamentos.selection()
-    if not selected_item:
-        messagebox.showerror("Erro", "Selecione um apartamento para remover")
-        return
-
-    item_id = selected_item[0]
-    # Encontra o índice do item para remover
-    index = lista_apartamentos.index(item_id)
-    del apartamentos[index]
-    atualizar_lista()
-
-def selecionar_apartamento(event):
-    selected_item = lista_apartamentos.selection()
-    if selected_item:
-        item_id = selected_item[0]
-        apartamento = apartamentos[lista_apartamentos.index(item_id)]
-        entry_descricao.delete(0, tk.END)
-        entry_descricao.insert(0, apartamento["descricao"])
-        combobox_quantidade.set(apartamento["quantidade"])
-        combobox_area.set(apartamento["area"])
-
-def atualizar_lista():
-    lista_apartamentos.delete(*lista_apartamentos.get_children())
-    for i, apto in enumerate(apartamentos):
-        lista_apartamentos.insert("", "end", iid=str(i), values=(apto["descricao"], apto["quantidade"], apto["area"]))
-    atualizar_fatores()
-
-def atualizar_fatores():
-    quantidade = combobox_quantidade.get()
-    area = combobox_area.get()
-    
-    fator_diversidade = fatores_diversidade.get(int(quantidade), "Não encontrado") if quantidade else "Não encontrado"
-    fator_potencia = potencia_por_area.get(float(area), "Não encontrado") if area else "Não encontrado"
-    
-    fator_diversidade_label.config(text=f"Fator de Diversidade: {fator_diversidade}")
-    fator_potencia_label.config(text=f"Potência por Área: {fator_potencia} kVA")
-
-def calcular_demanda():
-    if not apartamentos:
-        messagebox.showerror("Erro", "Não há apartamentos cadastrados para calcular a demanda")
-        return
-    
-    total_demanda = 0
-    detalhes_demanda = []
-    detalhes_calculo = []
-
-    global potencia_por_area, fatores_diversidade
-    
-    for apartamento in apartamentos:
-        area = apartamento["area"]
-        quantidade = apartamento["quantidade"]
-        descricao = apartamento["descricao"]
-
-        # Encontrar a potência correspondente à área
-        potencia = potencia_por_area.get(area)
-        if potencia is None:
-            messagebox.showerror("Erro", f"Área {area} não encontrada na tabela de potência")
-            return
-        
-        # Encontrar o fator de diversidade para a quantidade
-        fator_diversidade = fatores_diversidade.get(quantidade, fatores_diversidade[max(fatores_diversidade.keys())])
-        
-        # Calcular a demanda ajustada para o apartamento
-        demanda_apartamento = fator_diversidade * potencia
-        
-        # Atualizar a demanda total
-        total_demanda += demanda_apartamento
-
-        detalhes_demanda.append(f"{descricao}: {demanda_apartamento:.2f} kVA")
-        detalhes_calculo.append(f"Descrição: {descricao}")
-        detalhes_calculo.append(f"Número de Apartamentos: {quantidade}")
-        detalhes_calculo.append(f"Fator de Diversidade: {fator_diversidade:.2f}")
-        detalhes_calculo.append(f"Área do Apartamento: {area:.2f} m²")
-        detalhes_calculo.append(f"Potência do Apartamento: {potencia:.2f} kVA")
-        detalhes_calculo.append("")
-
-    # Atualizar a interface com a demanda total e detalhes
-    demanda_total_label.config(text=f"Demanda Total: {total_demanda:.2f} kVA")
-    detalhes_demanda_text.set("\n".join(detalhes_demanda))
-    
-    # Gerar o memorial de cálculo
-    gerar_memorial_calculo(
-        total_demanda,
-        detalhes_calculo
-    )
-
-detalhes_calculo = [
-    "1. Cálculo da Demanda Total:",
-    "   - Demanda Base: 10 kVA",
-    "   - Fator de Correção: 1.2",
-    "   - Resultado: 12 kVA",
-    "2. Cálculo da Distribuição por Andar:",
-    "   - Número de Apartamentos: 20",
-    "   - Demanda por Apartamento: 0.6 kVA",
-    "   - Total: 12 kVA",
-    "Observações:",
-    "   - A demanda total foi calculada com base nos parâmetros fornecidos."
-]
-
-def gerar_memorial_calculo(total_demanda, detalhes_calculo):
-    data_atual = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    nome_arquivo = f"memorial_calculo_{data_atual}.pdf"
-    
-    c = canvas.Canvas(nome_arquivo, pagesize=letter)
-    width, height = letter  # obter as dimensões da página
-
-    # Definir margens
-    margem_esquerda = 72
-    margem_superior = height - 72
-    margem_inferior = 72
-    deslocamento_linha_separacao = 5  # Novo deslocamento para a linha de separação
-    linha_separacao = margem_superior - 60 - deslocamento_linha_separacao  # Ajustado com base no deslocamento
-
-    # Cabeçalho
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margem_esquerda, margem_superior, "Memorial de Cálculo de Demanda de Apartamentos")
-    
-    c.setFont("Helvetica", 12)
-    c.drawString(margem_esquerda, margem_superior - 20, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    c.drawString(margem_esquerda, margem_superior - 40, f"Demanda Total: {total_demanda:.2f} kVA")
-    
-    # Linha de separação
-    c.line(margem_esquerda, linha_separacao, width - margem_esquerda, linha_separacao)
-    
-    # Detalhes do cálculo
-    y_position = linha_separacao - 20
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(margem_esquerda, y_position, "Detalhes do Cálculo:")
-    
-    c.setFont("Helvetica", 10)
-    y_position -= 20
-    
-    # Adicionar detalhes do cálculo
-    for linha in detalhes_calculo:
-        if y_position < margem_inferior:
-            c.showPage()  # Adicionar uma nova página se necessário
-            c.setFont("Helvetica", 10)
-            y_position = height - margem_superior + 20  # Redefinir posição Y para a nova página
-            c.drawString(margem_esquerda, y_position, "Detalhes do Cálculo:")
-            y_position -= 20
-        c.drawString(margem_esquerda, y_position, linha)
-        y_position -= 15
-    
-    c.save()
-    messagebox.showinfo("Sucesso", f"Memorial de cálculo salvo como {nome_arquivo}")
-
-# Configuração da interface gráfica
-root = tk.Tk()
-root.title("Gestão de Apartamentos")
-
-# Layout da interface
-frame_form = tk.Frame(root)
-frame_form.pack(padx=10, pady=10)
-
-tk.Label(frame_form, text="Descrição").grid(row=0, column=0, padx=5, pady=5)
-entry_descricao = tk.Entry(frame_form)
-entry_descricao.grid(row=0, column=1, padx=5, pady=5)
-
-tk.Label(frame_form, text="Quantidade").grid(row=1, column=0, padx=5, pady=5)
-combobox_quantidade = ttk.Combobox(frame_form, values=quantidades)
-combobox_quantidade.grid(row=1, column=1, padx=5, pady=5)
-combobox_quantidade.bind("<<ComboboxSelected>>", lambda event: atualizar_fatores())
-
-tk.Label(frame_form, text="Área (m²)").grid(row=2, column=0, padx=5, pady=5)
-combobox_area = ttk.Combobox(frame_form, values=areas)
-combobox_area.grid(row=2, column=1, padx=5, pady=5)
-combobox_area.bind("<<ComboboxSelected>>", lambda event: atualizar_fatores())
-
-btn_adicionar = tk.Button(frame_form, text="Adicionar", command=adicionar_apartamento)
-btn_adicionar.grid(row=3, column=0, padx=5, pady=5)
-
-btn_editar = tk.Button(frame_form, text="Editar", command=editar_apartamento)
-btn_editar.grid(row=3, column=1, padx=5, pady=5)
-
-btn_remover = tk.Button(frame_form, text="Remover", command=remover_apartamento)
-btn_remover.grid(row=3, column=2, padx=5, pady=5)
-
-btn_calcular_demanda = tk.Button(frame_form, text="Calcular Demanda", command=calcular_demanda)
-btn_calcular_demanda.grid(row=3, column=3, padx=5, pady=5)
-
-frame_lista = tk.Frame(root)
-frame_lista.pack(padx=10, pady=10)
-
-lista_apartamentos = ttk.Treeview(frame_lista, columns=("Descrição", "Quantidade", "Área"), show='headings')
-lista_apartamentos.heading("Descrição", text="Descrição")
-lista_apartamentos.heading("Quantidade", text="Quantidade")
-lista_apartamentos.heading("Área", text="Área")
-lista_apartamentos.bind("<ButtonRelease-1>", selecionar_apartamento)
-lista_apartamentos.pack()
-
-frame_resultados = tk.Frame(root)
-frame_resultados.pack(padx=10, pady=10)
-
-demanda_total_label = tk.Label(frame_resultados, text="Demanda Total: 0.00 kVA")
-demanda_total_label.pack()
-
-fator_diversidade_label = tk.Label(frame_resultados, text="Fator de Diversidade: Não encontrado")
-fator_diversidade_label.pack()
-
-fator_potencia_label = tk.Label(frame_resultados, text="Potência por Área: Não encontrado")
-fator_potencia_label.pack()
-
-detalhes_demanda_text = tk.StringVar()
-detalhes_demanda_label = tk.Label(frame_resultados, textvariable=detalhes_demanda_text, justify=tk.LEFT)
-detalhes_demanda_label.pack()
-
-root.mainloop()
+# Exibir a data e hora atual
+st.write(f"Data e hora da consulta: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
